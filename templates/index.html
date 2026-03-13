@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>東京湾ビシアジ釣果まとめ</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { --bg:#f6f8fb; --card:#fff; --line:#dbe3ee; --text:#16324f; --sub:#59738f; --accent:#1565c0; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:900px; margin:0 auto; padding:16px; }
+    .card { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 3px 12px rgba(12,43,77,.06); margin-bottom:14px; }
+    h1 { font-size:24px; margin:8px 0 12px; }
+    h2 { font-size:18px; margin:0 0 10px; }
+    .muted { color:var(--sub); font-size:13px; }
+    .form-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    input[type=date], button { font-size:16px; padding:12px 14px; border-radius:12px; border:1px solid var(--line); }
+    button { background:var(--accent); color:#fff; border:none; }
+    .boat { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+    .pill { display:inline-block; background:#e8f1fe; color:var(--accent); padding:4px 10px; border-radius:999px; font-size:12px; margin-bottom:8px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    td, th { padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    a { color:var(--accent); text-decoration:none; }
+    .big { font-size:28px; font-weight:700; }
+    .smallgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:640px){ .smallgrid { grid-template-columns:1fr; } h1{font-size:21px;} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="pill">iPhone対応</div>
+      <h1>東京湾ビシアジ 船別釣果まとめ</h1>
+      <p class="muted">指定日の船別釣果、観音崎の潮位変化、天気・気温をまとめて表示します。</p>
+      <form method="get" class="form-row">
+        <input type="date" name="date" value="{{ selected_date }}">
+        <button type="submit">表示する</button>
+      </form>
+      <p class="muted">対象船宿（{{ boat_count }}軒）: {{ boat_source_names }}</p>
+      <p class="muted">最終生成: {{ generated_at }}</p>
+    </div>
+
+    <div class="smallgrid">
+      <div class="card">
+        <h2>観音崎の天気・気温</h2>
+        {% if weather %}
+          <div class="big">{{ weather.weather }}</div>
+          <table>
+            <tr><th>最高気温</th><td>{{ weather.temp_max }} ℃</td></tr>
+            <tr><th>最低気温</th><td>{{ weather.temp_min }} ℃</td></tr>
+            <tr><th>正午気温</th><td>{{ weather.noon_temp if weather.noon_temp is not none else '—' }} ℃</td></tr>
+            <tr><th>データ元</th><td><a href="{{ weather.source_endpoint }}" target="_blank" rel="noopener">Open-Meteo</a></td></tr>
+          </table>
+        {% else %}
+          <p>取得できませんでした。{{ weather_error }}</p>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h2>観音崎の潮汐イベント</h2>
+        {% if tide.events %}
+          <div class="big">{{ tide.tide_name or '潮汐' }}</div>
+          <table>
+            <tr><th>時刻</th><th>種類</th><th>潮位</th></tr>
+            {% for e in tide.events %}
+              <tr><td>{{ e.time }}</td><td>{{ e.kind }}</td><td>{{ e.height_cm }} cm</td></tr>
+            {% endfor %}
+          </table>
+          <p class="muted"><a href="{{ tide.source_url }}" target="_blank" rel="noopener">潮位データ元を開く</a></p>
+        {% else %}
+          <p>潮位データを取得できませんでした。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>観音崎の潮位変化グラフ</h2>
+      <canvas id="tideChart" height="120"></canvas>
+      <p class="muted">注: グラフは取得できた満潮・干潮時刻の値から30分刻みで補間しています。</p>
+    </div>
+
+    <div class="card">
+      <h2>東京湾ビシアジ 船別釣果</h2>
+      {% for row in boat_results %}
+      <div class="boat">
+        <div class="pill">{{ row.boat_name }}</div>
+        {% if row.found %}
+          <table>
+            <tr><th>船種</th><td>{{ row.title }}</td></tr>
+            <tr><th>魚種</th><td>{{ row.fish }}</td></tr>
+            <tr><th>サイズ</th><td>{{ row.size or '—' }}</td></tr>
+            <tr><th>釣果</th><td>{{ row.catch_range or '—' }}</td></tr>
+            <tr><th>場所・水深</th><td>{{ row.area_depth or '—' }}</td></tr>
+            <tr><th>コメント</th><td>{{ row.comment or '—' }}</td></tr>
+            <tr><th>元ページ</th><td><a href="{{ row.source_url }}" target="_blank" rel="noopener">{{ row.source_name }}</a></td></tr>
+          </table>
+        {% else %}
+          <p>この日に一致するアジ釣果を取得できませんでした。<br><span class="muted">{{ row.comment }}</span></p>
+          <p><a href="{{ row.source_url }}" target="_blank" rel="noopener">元ページを見る</a></p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    const tideSeries = {{ tide.series|tojson }};
+    const ctx = document.getElementById('tideChart');
+    if (ctx && tideSeries.length) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: tideSeries.map(x => x.time),
+          datasets: [{ label: '潮位(cm)', data: tideSeries.map(x => x.height_cm), tension: 0.25 }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true } },
+          scales: { x: { ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: false } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
